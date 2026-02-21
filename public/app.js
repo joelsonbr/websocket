@@ -1,74 +1,143 @@
+// ========================================
+// ABERTURA DA CONEXÃO WEBSOCKET
+// ========================================
+
+// Cria um canal WebSocket persistente com o servidor.
+// "ws://" indica protocolo WebSocket.
+// A conexão permanece aberta para comunicação em tempo real.
 const socket = new WebSocket("ws://localhost:3000");
-// Escopo de Inicialização (Abertura da Conexão)
-// Aqui o navegador tenta "discar" para o servidor.
-// ws://localhost:3000: É o endereço onde seu servidor está rodando. 
-// O protocolo ws (WebSocket) abre um canal de mão dupla que fica aberto o tempo todo.
 
+
+// ========================================
+// REFERÊNCIAS DO DOM (INTERFACE)
+// ========================================
+
+// Container onde as mensagens serão exibidas.
 const log = document.getElementById("log");
+
+// Elemento que mostra quantidade de usuários online.
 const onlineSpan = document.getElementById("online");
-// Escopo de Elementos do DOM (Interface) 
-// Essas variáveis guardam as referências dos elementos que estão no seu arquivo HTML
-// onlineSpan: Provavelmente um <span> onde o número de pessoas online será atualizado
 
+// Campo de texto onde o usuário digita a mensagem.
+const input = document.getElementById("input");
+
+
+// ========================================
+// EVENTO: CONEXÃO ESTABELECIDA
+// ========================================
+
+// Executa quando o handshake WebSocket é concluído.
+// A partir daqui já é possível enviar dados.
 socket.onopen = () => {
-    addLog("Conectado ao servidor");
+    console.log("Conexão estabelecida com sucesso.");
 };
-// Escopo de Eventos do Socket (Escutando o Servidor)
-// socket.onopen => Dispara assim que o canal de comunicação é estabelecido com sucesso. Ele apenas avisa no seu log que a conexão deu certo.
 
+
+// ========================================
+// EVENTO: RECEBIMENTO DE DADOS
+// ========================================
+
+// Dispara toda vez que o servidor envia algo.
 socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    // Como o servidor envia textos (strings) em formato JSON,
-    //  o JSON.parse transforma isso de volta em um objeto JavaScript para podermos ler as propriedades:
 
+    // O servidor envia dados como string.
+    // JSON.parse converte para objeto JavaScript.
+    const data = JSON.parse(event.data);
+
+
+    // ------------------------------------
+    // ATUALIZAÇÃO DE USUÁRIOS ONLINE
+    // ------------------------------------
+
+    // Se o servidor enviou atualização de usuários
     if (data.type === "online") {
+
+        // Atualiza o número exibido na tela
         onlineSpan.textContent = data.count;
     }
-    // Se data.type === "online": 
-    // O código atualiza o número que aparece na tela com o valor que o servidor enviou (data.count).
 
-    if (data.type === "echo") {
-        addLog("Recebido: " + data.message);
+
+    // ------------------------------------
+    // RECEBIMENTO DE MENSAGEM DE CHAT
+    // ------------------------------------
+
+    if (data.type === "message") {
+
+        // Cria um novo elemento <div> dinamicamente
+        const div = document.createElement("div");
+
+        // Aplica a classe CSS que define o estilo do balão
+        div.classList.add("message");
+
+        // Define o texto da mensagem
+        div.textContent = data.message;
+
+        // Aplica a cor enviada pelo servidor
+        // Cada usuário possui uma cor fixa definida no backend
+
+        // Define a cor de fundo
+        div.style.backgroundColor = data.color;
+
+
+        function getContrastColor(hex) {
+            // Remove o '#'
+            const color = hex.replace("#", "")
+
+            // Converte para o valores RGB
+            const r = parseInt(color.substring(0, 2), 16)
+            const g = parseInt(color.substring(2, 4), 16)
+            const b = parseInt(color.substring(4, 6), 16)
+
+            // Fórmula de luminância perceptiva
+            const luminance = (0.299 * r + 0.587 * g + 0.144 * b)
+
+            // Se for cor clara -> texto preto
+            // Se for cor escura -> texto branco
+            return luminance > 186 ? "#000000" : "#FFFFFF"
+        }
+
+        // Aplica a cor ideal de texto
+        div.style.color = getContrastColor(data.color)
+
+        // Insere o balão no container de mensagens
+        log.appendChild(div);
+
+        // Faz a rolagem automática para a última mensagem
+        log.scrollTop = log.scrollHeight;
     }
-    // Se data.type === "echo": 
-    // O código entende que é uma resposta à sua própria mensagem e a imprime na tela usando a função addLog.
 };
-// socket.onmessage (O Cérebro do Cliente)
-// Este escopo lida com tudo o que o servidor envia para você.
 
+
+// ========================================
+// ENVIO DE MENSAGEM
+// ========================================
+
+// Função chamada pelo botão "Enviar"
 function send() {
-    const input = document.getElementById("input");
 
-    addLog("Enviado: " + input.value);
+    // Remove espaços extras e impede envio vazio
+    if (input.value.trim() === "") return;
+
+    // Envia apenas o texto puro para o servidor
+    // O servidor será responsável por:
+    // - adicionar a cor
+    // - distribuir para todos os clientes
     socket.send(input.value);
 
+    // Limpa o campo após envio
     input.value = "";
 }
-// Escopo de Interação do Usuário (send)
-// Essa função deve ser chamada quando você clica em um botão "Enviar"
-// 1. Pega o texto que você digitou no campo de entrada (input).
-// 2. Usa o addLog para mostrar para você mesmo o que você escreveu.
-// 3. socket.send(): Envia esse texto lá para o servidor (aquele que vai te devolver o "echo").
-// 4. Limpa o campo de texto para a próxima mensagem.
 
-function addLog(text) {
-    const div = document. createElement("div");
-    div.textContent = text;
-    log.appendChild(div);
-}
-// Escopo de Utilidade (addLog)
-// Uma função auxiliar simples para não ter que repetir código. 
-// Ela cria um novo elemento de texto e "pendura" ele dentro da sua lista de logs na tela.
 
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-
+// ========================================
+// RESUMO DO FLUXO
+// ========================================
 
-// Resumo da Conversa:
-/* 
-    1. Navegador: "Servidor, quero conectar!" (new WebSocket)
-    2. Servidor: "Beleza, agora temos X pessoas online." (type: "online")
-    3. Navegador: Atualiza o número na tela.
-    4. Você: Digita "Oi" e clica em enviar. (send())
-    5. Servidor: "Oi (Eco)!" (type: "echo")
-    6. Navegador: Mostra "Recebido: Oi" na tela.
+/*
+1) Cliente abre conexão WebSocket.
+2) Servidor aceita e mantém canal aberto.
+3) Cliente envia texto com socket.send().
+4) Servidor adiciona metadados (cor, tipo).
+5) Servidor faz broadcast para todos.
+6) Cliente recebe, cria balão e aplica a cor.
 */
-// 

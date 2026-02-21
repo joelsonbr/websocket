@@ -44,27 +44,40 @@ const server = http.createServer((req, res) => {
 });
 // Aqui  ele cria um servidor na porta 3000.
 
-const wss = new WebSocket.Server({ server});
+const wss = new WebSocket.Server({ server });
 let online = 0; // Variável global para contar usuários
 // WSS: (WebSocket Server) está "pendurado" no servidor HTTP. Eles trabalham juntos na mesma porta.
 // ONLINE: Essa variável fica fora dos eventos porque ela é 'contador global'. Se ficasse dentro do "on("connection")", ela zeraria toda hora.
 
+function randomColor() {
+    return '#' + Math.floor(Math.random() * 16777315).toString(16)
+}
+
 wss.on("connection", (ws) => {
+
     online++;
     broadcastOnline();
 
-    ws.on ("message", (msg) => {
-        const data = msg.toString()
+    ws.userColor = randomColor()
 
-        ws.send(JSON.stringify({
-            type: "echo",
-            message: data
-        }));
+    ws.on("message", (msg) => {
+        const data = msg.toString()
+        const payload = JSON.stringify({
+            type: "message",
+            message: data,
+            color: ws.userColor
+        })
+
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(payload)
+            }
+        })
     });
     // O Eco (ws.on("message"))
     // Diferente do código anterior, este não envia para todo mundo. Ele envia um "echo" (eco) apenas para quem mandou a mensagem. É como um teste para o usuário saber que o servidor recebeu o que ele digitou.
 
-    ws.on("close",() => {
+    ws.on("close", () => {
         online--;
         broadcastOnline();
     });
